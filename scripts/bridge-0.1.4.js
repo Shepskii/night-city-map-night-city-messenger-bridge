@@ -425,19 +425,21 @@ function wrapMapActions() {
 
 Hooks.once("ready", () => {
   initialized = true;
-  lastObservedGigs = snapshotGigs();
-  liveEventsReady = true;
+  setTimeout(() => {
+    lastObservedGigs = snapshotGigs();
+    liveEventsReady = true;
+  }, 5000);
   wrapMapActions();
 
   game.socket.on(SOCKET, (data) => {
-    if (!activeGM() || data?.action !== "transitions") return;
+    if (!liveEventsReady || !activeGM() || data?.action !== "transitions") return;
     for (const transition of data.transitions ?? []) {
       enqueueDelivery(() => processTransition(transition));
     }
   });
 
   game.socket.on(MAP_SOCKET, (data) => {
-    if (activeGM() && data?.action === "op" && data.op === "take" && data.data?.id && data.user) {
+    if (liveEventsReady && activeGM() && data?.action === "op" && data.op === "take" && data.data?.id && data.user) {
       enqueueDelivery(() => waitForAcceptedGig(data.data.id, data.user));
     }
   });
