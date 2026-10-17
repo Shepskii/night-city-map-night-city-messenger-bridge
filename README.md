@@ -1,11 +1,11 @@
 # Night City Map - Night City Messenger Bridge
 
-Sends [Night City Map](https://github.com/samroaleksej-bit/night-city-map) gig briefings and completion payments through Night City Messenger.
+Sends Night City Map gig briefings and completion payments through Night City Messenger.
 
 ## Requirements
 
 - Foundry VTT v12
-- Night City Map
+- [Night City Map](https://github.com/samroaleksej-bit/night-city-map)
 - Night City Messenger
 - At least one Night City Messenger GM contact tagged `CREWFIXER`
 
