@@ -13,6 +13,7 @@ let deliveryQueue = Promise.resolve();
 let lastObservedGigs = null;
 let poiDataPromise = null;
 const recentTransitions = new Map();
+const notifiedWithdrawals = new Set();
 
 function activeGM() {
   return game.user?.isGM && game.user.id === game.users.activeGM?.id;
@@ -287,7 +288,14 @@ async function sendCompletion(gig) {
 }
 
 async function processTransition(transition) {
-  if (!liveEventsReady || !activeGM() || isRecentDuplicate(transition.type, transition.gig ?? transition.gigs?.[0])) return;
+  if (!liveEventsReady || !activeGM()) return;
+  if (transition.type === "withdrawn") {
+    const gigId = transition.gig?.id;
+    if (!gigId || notifiedWithdrawals.has(gigId)) return;
+    notifiedWithdrawals.add(gigId);
+  } else if (isRecentDuplicate(transition.type, transition.gig ?? transition.gigs?.[0])) {
+    return;
+  }
   if (transition.type === "screamsheet") return sendScreamsheet(transition.gigs);
   if (transition.type === "special") {
     return sendPlayerNotice(transition.gig, {
@@ -410,6 +418,7 @@ function wrapMapActions() {
       return await onClick.apply(this, args);
     } finally {
       const after = snapshotGigs();
+      for (const gigId of after.keys()) notifiedWithdrawals.delete(gigId);
       lastObservedGigs = after;
       dispatchTransitions(collectTransitions(before, after, action));
     }
@@ -450,6 +459,7 @@ setInterval(() => {
   if (!initialized || !liveEventsReady || !activeGM()) return;
 
   const current = snapshotGigs();
+  for (const gigId of current.keys()) notifiedWithdrawals.delete(gigId);
   if (!lastObservedGigs) {
     lastObservedGigs = current;
     return;
