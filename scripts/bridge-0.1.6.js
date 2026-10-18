@@ -5,7 +5,16 @@ const SOCKET = `module.${MODULE_ID}`;
 const WRAPPED_HANDLER_FLAG = "__nightCityMessengerBridge";
 const FIXER_TAG = "CREWFIXER";
 
-console.info(`${MODULE_ID} | Runtime build 0.1.5 loaded.`);
+console.info(`${MODULE_ID} | Runtime build 0.1.6 loaded.`);
+
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "gigFixers", {
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {},
+  });
+});
 
 let initialized = false;
 let liveEventsReady = false;
@@ -38,10 +47,38 @@ function playerCharacters() {
   return [...actors.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function fixerContact() {
-  const contacts = game.nightcity?.masterContactService?.filterByTag?.(FIXER_TAG) ?? [];
+function fixerContacts() {
+  return game.nightcity?.masterContactService?.filterByTag?.(FIXER_TAG) ?? [];
+}
+
+function randomFixer() {
+  const contacts = fixerContacts();
   if (!contacts.length) return null;
   return contacts[Math.floor(Math.random() * contacts.length)];
+}
+
+function assignedFixer(gig) {
+  if (!gig?.id) return null;
+  const service = game.nightcity?.masterContactService;
+  const fixerId = game.settings.get(MODULE_ID, "gigFixers")?.[gig.id];
+  return fixerId ? service?.getContact?.(fixerId) ?? null : null;
+}
+
+async function assignFixer(gig) {
+  const existing = assignedFixer(gig);
+  if (existing) return existing;
+
+  const fixer = randomFixer();
+  if (!fixer || !gig?.id) return fixer;
+
+  const assignments = foundry.utils.deepClone(game.settings.get(MODULE_ID, "gigFixers") ?? {});
+  assignments[gig.id] = fixer.id;
+  await game.settings.set(MODULE_ID, "gigFixers", assignments);
+  return fixer;
+}
+
+function fixerForFollowup(gig) {
+  return assignedFixer(gig) ?? randomFixer();
 }
 
 function html(value) {
@@ -183,13 +220,13 @@ function isRecentDuplicate(type, gig) {
   return false;
 }
 
-async function sendBriefing(gig, recipientActors, acceptedBy = null) {
+async function sendBriefing(gig, recipientActors, acceptedBy = null, accepted = false) {
   if (!recipientActors.length) {
     ui.notifications.warn(`${MODULE_ID} | No player characters are assigned to receive this gig.`);
     return;
   }
 
-  const fixer = fixerContact();
+  const fixer = accepted ? await assignFixer(gig) : randomFixer();
   if (!fixer) {
     ui.notifications.warn(`${MODULE_ID} | No Messenger contact is tagged ${FIXER_TAG}; gig email was not sent.`);
     return;
@@ -205,11 +242,11 @@ async function sendBriefing(gig, recipientActors, acceptedBy = null) {
   }));
 }
 
-async function sendPlayerNotice(gig, { subject, intro }) {
+async function sendPlayerNotice(gig, { subject, intro }, reuseAssignment = false) {
   const recipients = playerCharacters();
   if (!recipients.length) return;
 
-  const fixer = fixerContact();
+  const fixer = reuseAssignment ? fixerForFollowup(gig) : randomFixer();
   if (!fixer) {
     ui.notifications.warn(`${MODULE_ID} | No Messenger contact is tagged ${FIXER_TAG}; gig email was not sent.`);
     return;
@@ -223,7 +260,7 @@ async function sendScreamsheet(gigs) {
   const recipients = playerCharacters();
   if (!recipients.length || !gigs.length) return;
 
-  const fixer = fixerContact();
+  const fixer = randomFixer();
   if (!fixer) {
     ui.notifications.warn(`${MODULE_ID} | No Messenger contact is tagged ${FIXER_TAG}; screamsheet was not sent.`);
     return;
@@ -239,11 +276,11 @@ async function sendScreamsheet(gigs) {
       + (gig.desc ? `<br>${html(gig.desc).replace(/\n/g, "<br>")}` : "")
       + "</li>";
   }));
-  const body = `<p>Fresh work is circulating across Night City. Review the available contracts below.</p><ul>${listings.join("")}</ul>`;
+  const body = `<p>Fresh work is circulating across Night Citycheck out the available contracts below.</p><ul>${listings.join("")}</ul>`;
   await sendToEach(recipients, (actor) => ({
     fixer,
     actor,
-    subject: `Night City screamsheet: ${gigs.length} new gig${gigs.length === 1 ? "" : "s"}`,
+    subject: `Night City Screamsheet: ${gigs.length} new gig${gigs.length === 1 ? "" : "s"}`,
     body,
   }));
 }
@@ -255,7 +292,7 @@ async function sendCompletion(gig) {
     return;
   }
 
-  const fixer = fixerContact();
+  const fixer = fixerForFollowup(gig);
   if (!fixer) {
     ui.notifications.warn(`${MODULE_ID} | No Messenger contact is tagged ${FIXER_TAG}; payment email was not sent.`);
     return;
@@ -291,15 +328,15 @@ async function processTransition(transition) {
   if (transition.type === "screamsheet") return sendScreamsheet(transition.gigs);
   if (transition.type === "special") {
     return sendPlayerNotice(transition.gig, {
-      subject: `Special request contract: ${transition.gig.title || "Untitled gig"}`,
-      intro: "A CREWFIXER has a special job request for your crew. This contract is being offered directly to you.",
+      subject: `Special contract: ${transition.gig.title || "Untitled gig"}`,
+      intro: "A client has a special job request for your crew. This contract is being offered directly to you.",
     });
   }
   if (transition.type === "failed") {
     return sendPlayerNotice(transition.gig, {
       subject: `Job failed: ${transition.gig.title || "Untitled gig"}`,
-      intro: "The crew botched this job. The fixer is aware of the failure; it may damage your reputation with clients and contacts.",
-    });
+      intro: "Your crew botched this job and the client is aware of the failure; it may damage your reputation for future clients and contacts.",
+    }, true);
   }
   if (transition.type === "briefing" || transition.type === "acceptance") {
     const acceptedUser = transition.acceptedByUserId
@@ -312,7 +349,7 @@ async function processTransition(transition) {
       ui.notifications.warn(`${MODULE_ID} | Could not identify the character who accepted "${transition.gig.title}".`);
       return;
     }
-    return sendBriefing(transition.gig, recipients, transition.acceptedByName);
+    return sendBriefing(transition.gig, recipients, transition.acceptedByName, transition.type === "acceptance");
   }
   if (transition.type === "completion") return sendCompletion(transition.gig);
 }

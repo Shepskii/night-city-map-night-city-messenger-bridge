@@ -2,7 +2,7 @@
   "id": "night-city-map-night-city-messenger-bridge",
   "title": "Night City Map - Night City Messenger Bridge",
   "description": "Sends fixer emails and claimable gig payments from Night City Map through Night City Messenger.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "authors": [
     {
       "name": "Shepskii"
@@ -33,7 +33,7 @@
   },
   "socket": true,
   "esmodules": [
-    "scripts/bridge-0.1.5.js"
+    "scripts/bridge-0.1.6.js"
   ],
   "languages": [
     {
@@ -44,5 +44,5 @@
   ],
   "url": "https://github.com/Shepskii/night-city-map-night-city-messenger-bridge",
   "manifest": "https://github.com/Shepskii/night-city-map-night-city-messenger-bridge/releases/latest/download/module.json",
-  "download": "https://github.com/Shepskii/night-city-map-night-city-messenger-bridge/releases/download/v0.1.5/night-city-map-night-city-messenger-bridge.zip"
+  "download": "https://github.com/Shepskii/night-city-map-night-city-messenger-bridge/releases/download/v0.1.6/night-city-map-night-city-messenger-bridge.zip"
 }
