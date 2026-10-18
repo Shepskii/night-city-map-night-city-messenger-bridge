@@ -33,7 +33,7 @@
   },
   "socket": true,
   "esmodules": [
-    "scripts/bridge-0.1.4.js"
+    "scripts/bridge-0.1.5.js"
   ],
   "languages": [
     {
