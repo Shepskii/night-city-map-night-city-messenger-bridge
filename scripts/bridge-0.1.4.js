@@ -5,7 +5,7 @@ const SOCKET = `module.${MODULE_ID}`;
 const WRAPPED_HANDLER_FLAG = "__nightCityMessengerBridge";
 const FIXER_TAG = "CREWFIXER";
 
-console.info(`${MODULE_ID} | Runtime build 0.1.4 loaded.`);
+console.info(`${MODULE_ID} | Runtime build 0.1.5 loaded.`);
 
 let initialized = false;
 let liveEventsReady = false;
@@ -13,7 +13,6 @@ let deliveryQueue = Promise.resolve();
 let lastObservedGigs = null;
 let poiDataPromise = null;
 const recentTransitions = new Map();
-const notifiedWithdrawals = new Set();
 
 function activeGM() {
   return game.user?.isGM && game.user.id === game.users.activeGM?.id;
@@ -288,14 +287,7 @@ async function sendCompletion(gig) {
 }
 
 async function processTransition(transition) {
-  if (!liveEventsReady || !activeGM()) return;
-  if (transition.type === "withdrawn") {
-    const gigId = transition.gig?.id;
-    if (!gigId || notifiedWithdrawals.has(gigId)) return;
-    notifiedWithdrawals.add(gigId);
-  } else if (isRecentDuplicate(transition.type, transition.gig ?? transition.gigs?.[0])) {
-    return;
-  }
+  if (!liveEventsReady || !activeGM() || isRecentDuplicate(transition.type, transition.gig ?? transition.gigs?.[0])) return;
   if (transition.type === "screamsheet") return sendScreamsheet(transition.gigs);
   if (transition.type === "special") {
     return sendPlayerNotice(transition.gig, {
@@ -307,12 +299,6 @@ async function processTransition(transition) {
     return sendPlayerNotice(transition.gig, {
       subject: `Job failed: ${transition.gig.title || "Untitled gig"}`,
       intro: "The crew botched this job. The fixer is aware of the failure; it may damage your reputation with clients and contacts.",
-    });
-  }
-  if (transition.type === "withdrawn") {
-    return sendPlayerNotice(transition.gig, {
-      subject: `Job withdrawn: ${transition.gig.title || "Untitled gig"}`,
-      intro: "This contract has been withdrawn. Stand down; the job was neither completed nor recorded as a failure.",
     });
   }
   if (transition.type === "briefing" || transition.type === "acceptance") {
@@ -349,9 +335,6 @@ function collectTransitions(before, after, action = null) {
   for (const [id, previous] of before) {
     const gig = after.get(id);
     if (!gig) {
-      if (["offer", "active"].includes(previous.status)) {
-        transitions.push({ type: "withdrawn", gig: previous });
-      }
       continue;
     }
     if (addedIds.has(id)) continue;
@@ -363,11 +346,6 @@ function collectTransitions(before, after, action = null) {
       transitions.push({ type: "failed", gig });
     } else if (gig.status === "done" && previous.status === "active") {
       transitions.push({ type: "completion", gig });
-    } else if (
-      ["offer", "active"].includes(previous.status) &&
-      !["active", "done", "failed"].includes(gig.status)
-    ) {
-      transitions.push({ type: "withdrawn", gig });
     } else if (gig.status === "active" && previous.status !== "active") {
       const acceptedByName = previous.status === "offer" && gig.takenBy && gig.takenBy !== previous.takenBy
         ? gig.takenBy
@@ -418,7 +396,6 @@ function wrapMapActions() {
       return await onClick.apply(this, args);
     } finally {
       const after = snapshotGigs();
-      for (const gigId of after.keys()) notifiedWithdrawals.delete(gigId);
       lastObservedGigs = after;
       dispatchTransitions(collectTransitions(before, after, action));
     }
@@ -459,7 +436,6 @@ setInterval(() => {
   if (!initialized || !liveEventsReady || !activeGM()) return;
 
   const current = snapshotGigs();
-  for (const gigId of current.keys()) notifiedWithdrawals.delete(gigId);
   if (!lastObservedGigs) {
     lastObservedGigs = current;
     return;
