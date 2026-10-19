@@ -1,6 +1,6 @@
 # Night City Map - Night City Messenger Bridge
 
-Sends Night City Map gig briefings and completion payments through Night City Messenger.
+Sends Night City Map gig briefings, night market access messages, and completion payments through Night City Messenger.
 
 ## Requirements
 
@@ -28,6 +28,8 @@ While loaded in your World, enable Night City Map - Night City Messenger Bridge 
 - A gig created manually by the GM via Night City Map's Gig menu **New** button is sent as a special request contract.
 - When a player accepts a gig, its chosen `CREWFIXER` is saved and reused for that gig's completion or failure email. Before acceptance, notices use a randomly selected fixer; screamsheets remain randomly assigned and do not bind fixers to their gigs.
 - When a gig is marked done, every assigned player character receives a completion email with an eddies attachment they can claim through Messenger.
+- When a player requests a Night Market invitation, their character emails a randomly selected `CREWFIXER` contact asking for access through the market's named fixer.
+- When the GM grants or revokes a player's Night Market access, the player receives an email from a randomly selected `CREWFIXER` contact confirming the change and naming the market's fixer.
 - Failed gigs trigger a warning about botching the job and possible reputation damage. Deleted, hidden, or otherwise withdrawn gigs do not generate email.
 - Screamsheet risk bands use the listed numeric payout: up to 200 eb is Low/Light, up to 500 is Moderate/Standard, up to 1,000 is High/Hard, and higher payouts are Extreme/Deadly. Rewards without a numeric eb amount are Unrated.
 - The gig's player-facing details are included; GM-only notes are not sent.
