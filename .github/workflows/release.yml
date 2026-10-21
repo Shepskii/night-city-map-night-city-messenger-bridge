@@ -19,5 +19,5 @@ jobs:
           node-version: '20'
           build-command: 'npm run build:prod'
           working-directory: 'build'
-          module-files: 'module.json scripts/ styles/ templates/ languages/ assets/'
-          zip-name: 'my-module.zip'
+          module-files: 'module.json scripts/ styles/ templates/ lang/ assets/'
+          zip-name: 'module.zip'

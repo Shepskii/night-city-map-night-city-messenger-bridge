@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160" role="img" aria-label="Contract failed">
+  <rect width="480" height="160" fill="#16060a"/>
+  <g stroke="#2e0c14" stroke-width="1">
+    <path d="M0 40H480M0 80H480M0 120H480M80 0V160M160 0V160M240 0V160M320 0V160M400 0V160"/>
+  </g>
+  <g fill="none" stroke="#ff2a4d" stroke-width="3">
+    <path d="M14 34V14H34M446 14H466V34M466 126V146H446M34 146H14V126"/>
+    <rect x="30" y="30" width="420" height="100" stroke-width="2" opacity="0.6"/>
+  </g>
+  <circle cx="92" cy="80" r="34" fill="none" stroke="#ff2a4d" stroke-width="5"/>
+  <path d="M74 62L110 98M110 62L74 98" fill="none" stroke="#ff2a4d" stroke-width="7" stroke-linecap="square"/>
+  <text x="146" y="74" font-family="Consolas, 'Courier New', monospace" font-size="38" font-weight="700" letter-spacing="3" fill="#ff2a4d">CONTRACT</text>
+  <text x="146" y="114" font-family="Consolas, 'Courier New', monospace" font-size="38" font-weight="700" letter-spacing="3" fill="#ff2a4d">FAILED</text>
+</svg>
