@@ -7,7 +7,7 @@ Sends Night City Map gig briefings, outcomes, completion payments and night mark
 - Foundry VTT v12
 - Cyberpunk RED Core
 - [Night City Map](https://github.com/samroaleksej-bit/night-city-map)
-- Night City Messenger
+- [Night City Messenger](https://github.com/christinophrappuccino/night-city-messenger)
 - At least one Night City Messenger GM contact tagged `CREWFIXER`
 
 ## Installation
