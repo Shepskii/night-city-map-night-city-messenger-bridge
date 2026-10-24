@@ -19,7 +19,7 @@ Or install through Foundry with the manifest: https://github.com/Shepskii/night-
 While loaded in your World, enable Night City Map - Night City Messenger Bridge in the Module Management.
 
 ## Features
-The NCM to NCM Bridge monitors gig and night market events in Night City Map and generates automated messages to players through Night City Messenger for Gigs and Night Markets:
+The NCM to NCM Bridge monitors gig and night market events in Night City Map and generates automated messages to players through Night City Messenger:
 - New randomly generated gigs (screamsheet)
 - GM created gigs (special contract)
 - Assigned or accepted gigs
@@ -32,7 +32,7 @@ The NCM to NCM Bridge monitors gig and night market events in Night City Map and
 
 ### The Fixer Contact(s)
 - Designate one or more contacts to be used as senders by applying the `CREWFIXER` tag to the GM contact in Night City Messenger
-- Fixer voice follows the personality on the fixer's linked character sheet. If a `CREWFIXER` contact is linked to an actor, its `Lifepath > Personality` determines which of ten voices (Shy, Rebellious, Arrogant, Moody, Picky, Stable, Silly, Sneaky, Intellectual, Friendly) are used for greetings, sign-offs, gig notices, completion and payment emails, and night market messages. Contacts with no linked actor, no personality, or an unrecognised personality use a generic fallback voice. Edit `PERSONALITY_POOLS` in `scripts/messages.js` to change a voice; any pool a voice leaves out falls back to the generic one.
+- Fixers have a unique 'voice' based on the personality on the fixer's linked character sheet. If a `CREWFIXER` contact is linked to an actor, its `Lifepath > Personality` determines which of ten voices (Shy, Rebellious, Arrogant, Moody, Picky, Stable, Silly, Sneaky, Intellectual, Friendly) are used for greetings, sign-offs, gig notices, completion and payment emails, and night market messages. Contacts with no linked actor, no personality, or an unrecognised personality use a generic fallback voice. Edit `PERSONALITY_POOLS` in `scripts/messages.js` to change a voice; any pool a voice leaves out falls back to the generic one.
 - When more than one `CREWFIXER` is present, the sender is randomly selected for each special contract, failed-job notice for an unassigned gig, and screamsheet.
 - A gig's `CREWFIXER` is saved when a player accepts it or the GM hands it out, and is reused for that gig's acceptance, completion, payment and failure emails to maintain consistency.
 - **Crew contact group (optional).** Create a Night City Messenger GM contact group (Admin Panel > Contacts) holding the player characters, then enter its name in the module setting **Crew contact group** (default `Crew`, not case-sensitive). Notices that go to the whole crew - GM-assigned gig briefings, special contracts, failed jobs, screamsheets and "Contract completed" emails - are then sent once from the `CREWFIXER` to that group as a single thread, so players can Reply All to the crew. Members must be resolvable by Messenger; any that are not are listed in the console. The sending fixer is skipped if it is in the group. Acceptance emails, "Payment settled" emails and night market emails always go to individual characters. If the setting is blank, no matching group exists, or the group has no reachable members, every assigned player character is emailed individually.
@@ -58,7 +58,7 @@ The NCM to NCM Bridge monitors gig and night market events in Night City Map and
 - When a player requests a Night Market invitation, their character emails a randomly selected `CREWFIXER` contact asking for access through the market's named fixer.
 - If player reputation changes above or below a Night Market requirement, a randomly selected `CREWFIXER` will automatically arrange or revoke access and message the player.
 - When the GM manually grants or revokes a player's Night Market access, the player receives an email from a randomly selected `CREWFIXER` contact confirming the change.
-- Access granted or revoked by the GM overrides any automatic access granted or revoked by a players reputation changing.
+- Access granted or revoked by the GM overrides any automatic access change by a players reputation.
 
 ## Unofficial Content
 
