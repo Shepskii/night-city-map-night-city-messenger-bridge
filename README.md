@@ -6,13 +6,13 @@ Sends Night City Map gig briefings, outcomes, completion payments and night mark
 
 - Foundry VTT v12
 - Cyberpunk RED Core
-- [Night City Map](https://github.com/samroaleksej-bit/night-city-map)
+- [Night City Map](https://github.com/samroaleksej-bit/night-city-map) (checked against v0.21.0, in English)
 - [Night City Messenger](https://github.com/christinophrappuccino/night-city-messenger)
 - At least one Night City Messenger GM contact tagged `CREWFIXER`
 
 ## Installation
 
-Unzip the release folder to the `Data\Modules` folder in your Foundry instance - `Data/modules/night-city-map-night-city-messenger-bridge`. Enable the module . 
+Unzip the release folder to the `Data\Modules` folder in your Foundry instance - `Data/modules/night-city-map-night-city-messenger-bridge`. Enable the module. 
 
 Or install through Foundry with the manifest: https://github.com/Shepskii/night-city-map-night-city-messenger-bridge/releases/latest/download/module.json
 
@@ -39,17 +39,19 @@ The NCM to NCM Bridge monitors gig and night market events in Night City Map and
 
 ### Gigs
 - Existing gig state is captured as a startup baseline; only gig changes observed after Foundry is ready generate messages.
+- The bridge reads gig changes from Night City Map's saves, so each change is emailed once, however it was made (map, Agent phone, another GM).
+- A player taking a gig is always sent an acceptance, even when they take a gig the GM had put back on offer.
 - When a player accepts a gig, the accepting character receives the gig email from a Fixer contact, designated with the `CREWFIXER` tag in NC Messenger .
 - When a GM 'hands out' a gig directly from Night City Map, every assigned player character receives the gig email from a `CREWFIXER`, and that fixer is saved for the gig.
 - When a GM generates gigs for the map, players receive one combined screamsheet message for the player-visible gigs, including client, payout, and payout-based risk.
 - A gig created manually by the GM via Night City Map's Gig menu **New** button is sent as a special request contract. Screamsheets use a randomly selected fixer and do not bind fixers to their gigs.
-- When a gig is marked complete, every assigned player character receives a positive reponse 30–120 seconds later, noting that payment will be settled once the client's funds clear. A separate "Payment settled" email with the claimable eddies attachment follows 5–10 minutes after that. Both come from the gig's `CREWFIXER`.
+- When a gig is marked complete, every assigned player character receives a positive response 30–120 seconds later, noting that payment will be settled once the client's funds clear. A separate "Payment settled" email with the claimable eddies attachment follows 5–10 minutes after that. Both come from the gig's `CREWFIXER`.
 - Pending completions are saved in world settings and resume after a reload. Only the active GM client sends them, and each email is sent at most once, so a payment interrupted mid-send is not repeated.
-- Failed gigs trigger a negative response from the gigs `CREWFIXER`.
+- Failed gigs trigger a negative response from the gig's `CREWFIXER`.
 - The "Contract completed" and "Job failed" emails each carry a banner image from `assets/` (`contract-completed.svg`, `contract-failed.svg`); replace those files to change the artwork. Deleted, hidden, or otherwise withdrawn gigs do not generate email.
 - Screamsheet risk bands use the listed numeric payout: up to 200 eb is Low/Light, up to 500 is Moderate/Standard, up to 1,000 is High/Hard, and higher payouts are Extreme/Deadly. Rewards without a numeric eb amount are Unrated.
 - The gig's player-facing details are included (gig, fixer, client, pickup, target, reward and description); GM-only notes are not sent. "Job failed" and "Contract completed" emails leave out the description.
-- Generated rewards marked `eb × crew` (`eb × команда` in the map's Russian locale) are paid at the stated amount per character. Other numeric reward amounts are treated as a team total and split evenly; any remainder is distributed one eddie at a time. Non-numeric rewards are included in the completion email without a cash attachment.
+- Generated rewards marked `eb × crew` are paid at the stated amount per character. Other numeric reward amounts are treated as a team total and split evenly; any remainder is distributed one eddie at a time. Non-numeric rewards are included in the completion email without a cash attachment.
 - "Payment settled" emails go to each assigned player character individually, not to the crew group, because each carries its own eddies attachment.
 - Socket relays are accepted only from the expected sender: GM-originated gig and market-access events from a GM, market requests from the requesting player, and gig acceptances from the accepting player.
 - Player recipients are deduplicated by assigned character, so multiple users assigned to the same actor do not receive duplicate payments.

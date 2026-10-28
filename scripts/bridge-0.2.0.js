@@ -1,5 +1,9 @@
-// The ?v= query busts the browser cache for this file on each release, like the versioned filename above.
-import { messagePool, resolvePersonality } from "./messages.js?v=0.1.11";
+// The ?v= queries bust the browser cache for these files on each release, like this file's versioned name.
+import { messagePool, resolvePersonality } from "./messages.js?v=0.2.0";
+import {
+  isPerCharacterReward, parseReward, riskLevel, splitReward,
+  statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
+} from "./logic.js?v=0.2.0";
 
 const MODULE_ID = "night-city-map-night-city-messenger-bridge";
 const MAP_ID = "night-city-map";
@@ -30,12 +34,15 @@ Hooks.once("init", () => {
   }
 });
 
-let initialized = false;
 let liveEventsReady = false;
 let deliveryQueue = Promise.resolve();
+// The map's gigs and markets as of its last save, so each save can be compared with the one before.
 let lastObservedGigs = null;
+let lastObservedMarkets = null;
 let poiDataPromise = null;
 const recentEvents = new Map();
+// Gigs a player was seen taking (gig id -> user id), until the map's save shows them active.
+const pendingTakes = new Map();
 
 // Read map state and resolve the fixer associated with each message.
 function activeGM() {
@@ -286,37 +293,6 @@ async function gigContractBody(gig, fixer, intro, signoffKey = "gigSignoffs") {
     + `<p>${say(signoffKey, fixer)}<br><strong>${html(fixer.name)}</strong></p>`;
 }
 
-  // Parse reward text and split attached eddies among player characters.
-function isPerCharacterReward(reward) {
-  return /(?:[×x*]\s*(?:team|crew(?:\s+members?)?|команд)|\bper\s+(?:player|person|character)\b|\beach\b|на каждого|каждому)/iu.test(reward);
-}
-
-function parseReward(reward) {
-  const text = String(reward ?? "").trim();
-  const currencyMatch = text.match(/(?:^|[^\d])([\d][\d,]*)\s*(?:eb\b|edd(?:y|ies)\b|эдди(?:й|и|ев)?)/iu);
-  const numericMatch = text.match(/^([\d][\d,]*)$/u);
-  const amountText = currencyMatch?.[1] ?? numericMatch?.[1];
-  if (!amountText) return null;
-  const amount = Number.parseInt(amountText.replace(/,/g, ""), 10);
-  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
-}
-
-function riskLevel(reward) {
-  const amount = parseReward(reward);
-  if (amount === null) return "Unrated";
-  if (amount <= 200) return "Low / Light";
-  if (amount <= 500) return "Moderate / Standard";
-  if (amount <= 1000) return "High / Hard";
-  return "Extreme / Deadly";
-}
-
-function splitReward(amount, actors, perCharacter) {
-  if (perCharacter) return actors.map((actor) => ({ actor, amount }));
-  const base = Math.floor(amount / actors.length);
-  const remainder = amount % actors.length;
-  return actors.map((actor, index) => ({ actor, amount: base + (index < remainder ? 1 : 0) }));
-}
-
 function playerForCharacterName(name) {
   const matches = game.users.contents.filter((user) =>
     !user.isGM && user.character?.name === name,
@@ -431,78 +407,22 @@ function playerReputation(user) {
   return Number.isFinite(reputation) ? reputation : 0;
 }
 
-// Reconcile Reputation-based access while honoring explicit GM overrides.
+// Reconcile Reputation-based access while honoring explicit GM overrides (see planMarketAccess).
+// This writes the map's own state setting, as the map has no API for market access.
 async function reconcileMarketAccess() {
   if (!liveEventsReady || !activeGM()) return;
 
   const state = foundry.utils.deepClone(game.settings.get(MAP_ID, "state") ?? {});
-  const markets = state.markets ?? [];
-  const players = game.users.contents.filter((user) => !user.isGM && user.character);
-  const autoAccess = foundry.utils.deepClone(game.settings.get(MODULE_ID, "marketAutoAccess") ?? {});
-  const overrides = game.settings.get(MODULE_ID, "marketAccessOverrides") ?? {};
-  const changes = [];
-  let mapChanged = false;
-  let autoAccessChanged = false;
+  const plan = planMarketAccess({
+    markets: state.markets ?? [],
+    players: game.users.contents.filter((user) => !user.isGM && user.character).map((user) => ({ id: user.id, rep: playerReputation(user) })),
+    autoAccess: game.settings.get(MODULE_ID, "marketAutoAccess") ?? {},
+    overrides: game.settings.get(MODULE_ID, "marketAccessOverrides") ?? {},
+  });
 
-  for (const market of markets) {
-    if (!market?.id) continue;
-    const access = new Set(market.access ?? []);
-    const requiredRep = Number(market.rep ?? 0);
-    const threshold = Number.isFinite(requiredRep) ? requiredRep : 0;
-    const marketOverrides = overrides[market.id] ?? {};
-    let marketChanged = false;
-    autoAccess[market.id] ??= {};
-
-    for (const user of players) {
-      const isAccessible = access.has(user.id);
-      const wasAutoGranted = !!autoAccess[market.id][user.id];
-      const hasOverride = Object.hasOwn(marketOverrides, user.id);
-
-      if (hasOverride) {
-        const overrideAccess = !!marketOverrides[user.id];
-        if (wasAutoGranted) {
-          delete autoAccess[market.id][user.id];
-          autoAccessChanged = true;
-        }
-        if (isAccessible !== overrideAccess) {
-          if (overrideAccess) access.add(user.id);
-          else access.delete(user.id);
-          changes.push({ marketId: market.id, userId: user.id, granted: overrideAccess, automatic: true });
-          marketChanged = true;
-        }
-        continue;
-      }
-
-      const qualifies = playerReputation(user) >= threshold;
-
-      if (qualifies && !isAccessible) {
-        access.add(user.id);
-        autoAccess[market.id][user.id] = true;
-        changes.push({ marketId: market.id, userId: user.id, granted: true, automatic: true });
-        marketChanged = true;
-        autoAccessChanged = true;
-      } else if (!qualifies && isAccessible && wasAutoGranted) {
-        access.delete(user.id);
-        delete autoAccess[market.id][user.id];
-        changes.push({ marketId: market.id, userId: user.id, granted: false, automatic: true });
-        marketChanged = true;
-        autoAccessChanged = true;
-      } else if (!isAccessible && wasAutoGranted) {
-        delete autoAccess[market.id][user.id];
-        autoAccessChanged = true;
-      }
-    }
-
-    if (!Object.keys(autoAccess[market.id]).length) delete autoAccess[market.id];
-    if (marketChanged) {
-      market.access = [...access];
-      mapChanged = true;
-    }
-  }
-
-  if (mapChanged) await game.settings.set(MAP_ID, "state", state);
-  if (autoAccessChanged) await game.settings.set(MODULE_ID, "marketAutoAccess", autoAccess);
-  for (const change of changes) {
+  if (plan.mapChanged) await game.settings.set(MAP_ID, "state", { ...state, markets: plan.markets });
+  if (plan.autoAccessChanged) await game.settings.set(MODULE_ID, "marketAutoAccess", plan.autoAccess);
+  for (const change of plan.changes) {
     try {
       await sendMarketAccessChange(change);
     } catch (error) {
@@ -556,7 +476,7 @@ function enqueueDelivery(task) {
   return deliveryQueue;
 }
 
-// True if the same event key was already seen in the last two seconds (the click wrapper and poll can both report a change).
+// True if the same market access email was already sent in the last two seconds.
 function isRecent(key, windowMs = 2000) {
   const previous = recentEvents.get(key);
   if (previous && Date.now() - previous < windowMs) return true;
@@ -763,12 +683,6 @@ async function processDueCompletions() {
 // Route each detected gig transition to its notification workflow.
 async function processTransition(transition) {
   if (!liveEventsReady || !activeGM()) return;
-  const { type, gig, gigs } = transition;
-  const key = gigs
-    ? `${type}:${gigs.map((entry) => entry.id).join(",")}`
-    : `${type}:${gig.id}:${gig.status}`;
-  // Emails take seconds to deliver, so a queued duplicate must be caught well after the 2s default.
-  if (isRecent(key, 15000)) return;
   if (transition.type === "screamsheet") return sendScreamsheet(transition.gigs);
   if (transition.type === "special") {
     return sendPlayerNotice(transition.gig, {
@@ -808,159 +722,110 @@ async function processTransition(transition) {
   if (transition.type === "completion") return sendCompletion(transition.gig);
 }
 
-// Compare map snapshots and create notification events for gig changes.
-function collectTransitions(before, after, action = null) {
-  const transitions = [];
-  const added = [...after.entries()]
-    .filter(([id]) => !before.has(id))
-    .map(([, gig]) => gig);
-  const addedIds = new Set(added.map((gig) => gig.id));
-  const playerVisible = (gig) => ["offer", "active"].includes(gig.status);
-
-  if (action === "new-quest") {
-    for (const gig of added) transitions.push({ type: "special", gig });
-  } else if (["gen-gig", "gen-gigs"].includes(action)) {
-    const visibleGigs = added.filter(playerVisible);
-    if (visibleGigs.length) transitions.push({ type: "screamsheet", gigs: visibleGigs });
-  }
-
-  for (const [id, previous] of before) {
-    const gig = after.get(id);
-    if (!gig || addedIds.has(id)) continue;
-
-    if (
-      gig.status === "failed" &&
-      playerVisible(previous)
-    ) {
-      transitions.push({ type: "failed", gig });
-    } else if (gig.status === "done" && previous.status === "active") {
-      transitions.push({ type: "completion", gig });
-    } else if (gig.status === "active" && previous.status !== "active") {
-      const acceptedByName = previous.status === "offer" && gig.takenBy && gig.takenBy !== previous.takenBy
-        ? gig.takenBy
-        : null;
-      transitions.push({
-        type: acceptedByName ? "acceptance" : "briefing",
-        gig,
-        acceptedByName,
-      });
-    }
-  }
-  return transitions;
+// Each kind of gig event has exactly one detector, so none is ever sent twice:
+//  - status changes (handed out, accepted, completed, failed) come from the map's saves, on the active GM;
+//  - which new gigs are special contracts or a screamsheet comes from the GM's click (wrapMapActions);
+//  - who accepted a gig comes from the map's "take" request (recorded in pendingTakes).
+function enqueueTransitions(transitions) {
+  for (const transition of transitions) enqueueDelivery(() => processTransition(transition));
 }
 
-// Route GM-owned gig and market events through the active GM client.
-function dispatchTransitions(transitions) {
-  if (!liveEventsReady || !transitions.length || !game.user?.isGM) return;
-  if (activeGM()) {
-    for (const transition of transitions) enqueueDelivery(() => processTransition(transition));
-  } else {
-    game.socket.emit(SOCKET, { action: "transitions", transitions });
+// Compare the map's state with its last save. Every GM keeps the baseline, so a new active GM
+// continues where the last one left off; only the active GM acts on what changed.
+function onMapStateChanged() {
+  if (!game.user?.isGM) return;
+  const gigs = snapshotGigs();
+  const markets = snapshotMarkets();
+  const beforeGigs = lastObservedGigs;
+  const beforeMarkets = lastObservedMarkets;
+  lastObservedGigs = gigs;
+  lastObservedMarkets = markets;
+  if (!liveEventsReady || !activeGM() || !beforeGigs) return;
+
+  enqueueTransitions(statusTransitions(beforeGigs, gigs, pendingTakes));
+  if (marketEligibilitySignature(beforeMarkets) !== marketEligibilitySignature(markets)) {
+    enqueueDelivery(() => reconcileMarketAccess());
   }
 }
 
-function dispatchMarketAccessChanges(changes) {
-  if (!changes.length || !game.user?.isGM) return;
-  if (activeGM()) {
-    for (const change of changes) enqueueDelivery(() => sendMarketAccessChange(change));
-  } else {
-    game.socket.emit(SOCKET, { action: "market-access-changes", changes });
-  }
+// GM-only events found by a click go to the active GM.
+function relayToActiveGM(action, payload, handle) {
+  if (activeGM()) handle();
+  else game.socket.emit(SOCKET, { action, ...payload });
 }
 
-function collectMarketAccessChanges(before, after) {
-  const changes = [];
-  for (const [marketId, market] of after) {
-    const previous = before.get(marketId);
-    if (!previous) continue;
-    const previousAccess = new Set(previous.access ?? []);
-    const currentAccess = new Set(market.access ?? []);
-    for (const userId of market.access ?? []) {
-      if (!previousAccess.has(userId)) changes.push({ marketId, userId, granted: true });
-    }
-    for (const userId of previousAccess) {
-      if (!currentAccess.has(userId)) changes.push({ marketId, userId, granted: false });
-    }
-  }
-  return changes;
-}
-
-// Detect new markets or Reputation threshold edits without reacting to access toggles.
-function marketEligibilitySignature(markets) {
-  return JSON.stringify([...markets.values()]
-    .map((market) => [market.id, market.rep ?? 0])
-    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId)));
-}
-
-// Wait for the map module to persist a player's accepted gig.
-async function waitForAcceptedGig(gigId, userId) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const gig = gigList().find((entry) => entry.id === gigId);
-    if (gig?.status === "active") {
-      return processTransition({
-        type: "acceptance",
-        gig: foundry.utils.deepClone(gig),
-        acceptedByUserId: userId,
-        acceptedByName: game.users.get(userId)?.character?.name || game.users.get(userId)?.name,
-      });
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-}
-
-// Observe map UI actions and relay player requests to the active GM.
+// Observe map clicks for what only the click tells: whether new gigs were written or generated,
+// which market access the GM toggled, and a player asking for a night market.
 function wrapMapActions() {
   const mapUI = game.modules.get(MAP_ID)?.api?.ui;
-  if (!mapUI || typeof mapUI.onClick !== "function" || mapUI.onClick[WRAPPED_HANDLER_FLAG]) return;
+  if (!mapUI || typeof mapUI.onClick !== "function") return false;
+  if (mapUI.onClick[WRAPPED_HANDLER_FLAG]) return true;
 
   const onClick = mapUI.onClick;
   const wrapped = async function (...args) {
-    const before = snapshotGigs();
-    const beforeMarkets = snapshotMarkets();
     const button = args[0]?.target?.closest?.("[data-act]");
     const action = button?.dataset.act;
-    const marketId = button?.dataset.id;
-    const requester = !game.user.isGM && game.user.character
-      ? { userId: game.user.id, characterId: game.user.character.id }
+    const before = game.user.isGM ? snapshotGigs() : null;
+    const beforeMarkets = game.user.isGM && action === "market-grant" ? snapshotMarkets() : null;
+    const requester = action === "market-ask" && !game.user.isGM && game.user.character
+      ? { marketId: button?.dataset.id, userId: game.user.id, characterId: game.user.character.id }
       : null;
     try {
       return await onClick.apply(this, args);
     } finally {
-      const after = snapshotGigs();
-      const afterMarkets = snapshotMarkets();
-      lastObservedGigs = after;
-      if (action === "market-grant") {
-        dispatchMarketAccessChanges(collectMarketAccessChanges(beforeMarkets, afterMarkets));
-      } else {
-        dispatchTransitions(collectTransitions(before, after, action));
+      if (before && liveEventsReady) {
+        const added = addedGigEvents(before, snapshotGigs(), action);
+        if (added.length) relayToActiveGM("transitions", { transitions: added }, () => enqueueTransitions(added));
       }
-      if (marketEligibilitySignature(beforeMarkets) !== marketEligibilitySignature(afterMarkets)) {
-        enqueueDelivery(() => reconcileMarketAccess());
+      if (beforeMarkets && liveEventsReady) {
+        const changes = collectMarketAccessChanges(beforeMarkets, snapshotMarkets());
+        if (changes.length) {
+          relayToActiveGM("market-access-changes", { changes }, () => {
+            for (const change of changes) enqueueDelivery(() => sendMarketAccessChange(change));
+          });
+        }
       }
-      if (action === "market-ask" && requester) {
-        game.socket.emit(SOCKET, { action: "market-request", marketId, ...requester });
-      }
+      if (requester) game.socket.emit(SOCKET, { action: "market-request", ...requester });
     }
   };
   Object.defineProperty(wrapped, WRAPPED_HANDLER_FLAG, { value: true });
   mapUI.onClick = wrapped;
-  if (mapUI.onClick === wrapped) {
-    console.info(`${MODULE_ID} | Attached the Night City Map gig listener.`);
-  } else {
+  if (mapUI.onClick !== wrapped) {
     console.error(`${MODULE_ID} | Could not attach the Night City Map gig listener.`);
+    return false;
   }
+  console.info(`${MODULE_ID} | Attached the Night City Map gig listener.`);
+  return true;
 }
 
-// Attach socket listeners and initialize polling once Foundry is ready.
+const COMPLETION_CHECK_MS = 5000;
+
 Hooks.once("ready", () => {
-  initialized = true;
   document.addEventListener("click", handleMapLocationClick, true);
+
+  // The map's API may be published after this hook runs, so keep trying until the click wrapper attaches.
+  if (!wrapMapActions()) {
+    const retry = setInterval(() => { if (wrapMapActions()) clearInterval(retry); }, 1000);
+  }
+
+  // The baseline is taken now; changes are acted on once Foundry has settled.
+  onMapStateChanged();
   setTimeout(() => {
-    lastObservedGigs = snapshotGigs();
     liveEventsReady = true;
+    onMapStateChanged();
     enqueueDelivery(() => reconcileMarketAccess());
   }, 5000);
-  wrapMapActions();
+
+  // Every change the map makes is saved to its world setting; this fires on every client as soon as it is.
+  // The very first save in a world creates the setting instead of updating it.
+  const onSetting = (setting) => { if (setting?.key === `${MAP_ID}.state`) onMapStateChanged(); };
+  Hooks.on("updateSetting", onSetting);
+  Hooks.on("createSetting", onSetting);
+
+  // Completion notices and payments fall due minutes apart, so a check every few seconds is enough.
+  setInterval(() => {
+    if (liveEventsReady && activeGM() && Object.keys(pendingCompletions()).length) enqueueDelivery(() => processDueCompletions());
+  }, COMPLETION_CHECK_MS);
 
   Hooks.on("updateActor", (actor, changes) => {
     // Only Reputation affects market access; skip combat-time HP/ammo updates.
@@ -980,9 +845,8 @@ Hooks.once("ready", () => {
     const sender = game.users.get(senderId);
     if (!sender) return;
     if (data?.action === "transitions" && sender.isGM) {
-      for (const transition of data.transitions ?? []) {
-        enqueueDelivery(() => processTransition(transition));
-      }
+      // Only new-gig events are relayed; status changes the active GM reads from the map's saves itself.
+      enqueueTransitions((data.transitions ?? []).filter((t) => t?.type === "special" || t?.type === "screamsheet"));
     } else if (data?.action === "market-request" && data.userId === sender.id) {
       enqueueDelivery(() => sendMarketRequest(data));
     } else if (data?.action === "market-access-changes" && sender.isGM) {
@@ -992,26 +856,13 @@ Hooks.once("ready", () => {
     }
   });
 
+  // A player taking a gig asks the GM through the map's socket. Note who, so the map's save that
+  // follows is read as their acceptance rather than the GM handing the gig out.
   game.socket.on(MAP_SOCKET, (data, senderId) => {
-    if (liveEventsReady && activeGM() && data?.action === "op" && data.op === "take" && data.data?.id && data.user === senderId) {
-      enqueueDelivery(() => waitForAcceptedGig(data.data.id, data.user));
+    if (activeGM() && data?.action === "op" && data.op === "take" && data.data?.id && data.user === senderId) {
+      const gigId = data.data.id;
+      pendingTakes.set(gigId, senderId);
+      setTimeout(() => { if (pendingTakes.get(gigId) === senderId) pendingTakes.delete(gigId); }, 60_000);
     }
   });
 });
-
-// Poll map state as a fallback for unobserved changes.
-setInterval(() => {
-  if (initialized) wrapMapActions();
-  if (!initialized || !liveEventsReady || !activeGM()) return;
-
-  if (Object.keys(pendingCompletions()).length) enqueueDelivery(() => processDueCompletions());
-
-  const current = snapshotGigs();
-  if (!lastObservedGigs) {
-    lastObservedGigs = current;
-    return;
-  }
-  const transitions = collectTransitions(lastObservedGigs, current);
-  lastObservedGigs = current;
-  dispatchTransitions(transitions);
-}, 1000);
