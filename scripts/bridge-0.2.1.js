@@ -1,9 +1,9 @@
 // The ?v= queries bust the browser cache for these files on each release, like this file's versioned name.
-import { messagePool, resolvePersonality } from "./messages.js?v=0.2.0";
+import { messagePool, resolvePersonality } from "./messages.js?v=0.2.1";
 import {
-  isPerCharacterReward, parseReward, riskLevel, splitReward,
+  isPerCharacterReward, mailSubject, parseReward, riskLevel, splitReward,
   statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
-} from "./logic.js?v=0.2.0";
+} from "./logic.js?v=0.2.1";
 
 const MODULE_ID = "night-city-map-night-city-messenger-bridge";
 const MAP_ID = "night-city-map";
@@ -307,7 +307,7 @@ async function deliver(message, failure) {
     throw new Error("Night City Messenger MessageService is unavailable.");
   }
 
-  const result = await service.sendMessage({ priority: "normal", ...message });
+  const result = await service.sendMessage({ priority: "normal", ...message, subject: mailSubject(message.subject) });
   if (!result?.success) throw new Error(result?.error || failure);
   return result;
 }

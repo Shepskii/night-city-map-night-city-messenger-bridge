@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  mailSubject,
   isPerCharacterReward, parseReward, riskLevel, splitReward,
   statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
 } from "../scripts/logic.js";
@@ -136,4 +137,10 @@ test("the GM's own decision beats Reputation either way", () => {
 
   const quiet = planMarketAccess({ markets: out.markets, players: [{ id: "invited", rep: 0 }], autoAccess: {}, overrides: { m: { invited: true } } });
   assert.deepEqual([quiet.changes, quiet.mapChanged, quiet.autoAccessChanged], [[], false, false], "nothing to do once settled");
+});
+
+test("a subject is kept within Messenger's limit", () => {
+  assert.equal(mailSubject("x".repeat(500)).length, 190);
+  assert.equal(mailSubject("Short"), "Short");
+  assert.equal(mailSubject(undefined), "");
 });

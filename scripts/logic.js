@@ -183,3 +183,6 @@ export function planMarketAccess({ markets, players, autoAccess, overrides }) {
 
   return { markets: nextMarkets, autoAccess: auto, changes, mapChanged, autoAccessChanged };
 }
+
+// Messenger refuses a subject over 200 characters, which a long gig title can reach.
+export const mailSubject = (subject) => String(subject ?? "").slice(0, 190);

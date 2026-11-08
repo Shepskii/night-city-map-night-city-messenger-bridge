@@ -2,7 +2,7 @@
   "id": "night-city-map-night-city-messenger-bridge",
   "title": "Night City Map - Night City Messenger Bridge",
   "description": "Sends gig and night market emails plus claimable gig payments from Night City Map through Night City Messenger.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "authors": [
     {
       "name": "Shepskii"
@@ -33,7 +33,7 @@
   },
   "socket": true,
   "esmodules": [
-    "scripts/bridge-0.2.0.js"
+    "scripts/bridge-0.2.1.js"
   ],
   "languages": [
     {
