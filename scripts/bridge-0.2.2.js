@@ -1,9 +1,9 @@
 // The ?v= queries bust the browser cache for these files on each release, like this file's versioned name.
-import { messagePool, resolvePersonality } from "./messages.js?v=0.2.1";
+import { messagePool, resolvePersonality } from "./messages.js?v=0.2.2";
 import {
   isPerCharacterReward, mailSubject, pushTargets, parseReward, riskLevel, splitReward,
   statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
-} from "./logic.js?v=0.2.1";
+} from "./logic.js?v=0.2.2";
 
 const MODULE_ID = "night-city-map-night-city-messenger-bridge";
 const SHARE_FIXERS_SETTING = "shareFixers";
