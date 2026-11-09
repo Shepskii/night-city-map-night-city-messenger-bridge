@@ -186,3 +186,6 @@ export function planMarketAccess({ markets, players, autoAccess, overrides }) {
 
 // Messenger refuses a subject over 200 characters, which a long gig title can reach.
 export const mailSubject = (subject) => String(subject ?? "").slice(0, 190);
+
+// The characters a mail reaches, once each: a group's members who are contacts with no character have no list to add to.
+export const pushTargets = (recipients) => [...new Set((recipients ?? []).map((r) => r?.actorId).filter(Boolean))];

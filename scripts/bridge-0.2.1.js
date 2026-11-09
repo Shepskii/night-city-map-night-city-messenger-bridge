@@ -1,11 +1,12 @@
 // The ?v= queries bust the browser cache for these files on each release, like this file's versioned name.
 import { messagePool, resolvePersonality } from "./messages.js?v=0.2.1";
 import {
-  isPerCharacterReward, mailSubject, parseReward, riskLevel, splitReward,
+  isPerCharacterReward, mailSubject, pushTargets, parseReward, riskLevel, splitReward,
   statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
 } from "./logic.js?v=0.2.1";
 
 const MODULE_ID = "night-city-map-night-city-messenger-bridge";
+const SHARE_FIXERS_SETTING = "shareFixers";
 const MAP_ID = "night-city-map";
 const MAP_SOCKET = `module.${MAP_ID}`;
 const SOCKET = `module.${MODULE_ID}`;
@@ -23,6 +24,14 @@ Hooks.once("init", () => {
     config: true,
     type: String,
     default: "Crew",
+  });
+  game.settings.register(MODULE_ID, SHARE_FIXERS_SETTING, {
+    name: "NCM_MAP_BRIDGE.ShareFixersName",
+    hint: "NCM_MAP_BRIDGE.ShareFixersHint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
   });
   for (const key of ["gigFixers", "marketAccessFixers", "marketAccessOverrides", "marketAutoAccess", "pendingCompletions"]) {
     game.settings.register(MODULE_ID, key, {
@@ -338,8 +347,24 @@ function crewRecipients(fixer) {
   return reachable;
 }
 
+// Put the fixer in a character's contacts before the mail arrives. Safe to repeat, and a mail never waits on it failing.
+async function shareFixer(fixer, actorIds) {
+  if (!game.settings.get(MODULE_ID, SHARE_FIXERS_SETTING)) return;
+  const push = game.modules.get("night-city-messenger")?.api?.v2?.directory?.pushToPlayer;
+  if (typeof push !== "function") return;
+  for (const actorId of actorIds) {
+    try {
+      const result = await push(fixer.id, actorId);
+      if (!result?.ok) console.warn(`${MODULE_ID} | Could not share ${fixer.name} with a character: ${result?.error}`);
+    } catch (error) {
+      console.warn(`${MODULE_ID} | Could not share ${fixer.name} with a character.`, error);
+    }
+  }
+}
+
 // A CREWFIXER contact emails a player character.
-function sendEmail({ fixer, actor, subject, body, eddies = 0 }) {
+async function sendEmail({ fixer, actor, subject, body, eddies = 0 }) {
+  await shareFixer(fixer, [actor.id]);
   return deliver(
     { fromContactId: fixer.id, toActorId: actor.id, subject, body, eddies },
     `Messenger failed to deliver to ${actor.name}.`,
@@ -454,6 +479,7 @@ async function sendToCrew(actors, { fixer, subject, body }) {
   }
 
   try {
+    await shareFixer(fixer, pushTargets(recipients));
     const result = await deliver(
       { fromContactId: fixer.id, recipients, subject, body },
       "Messenger failed to deliver to the crew group.",

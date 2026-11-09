@@ -1,4 +1,6 @@
 {
+  "NCM_MAP_BRIDGE.ShareFixersName": "Share fixers with players",
+  "NCM_MAP_BRIDGE.ShareFixersHint": "A character sent a gig or night market message gets the fixer in their Night City Messenger contacts.",
   "NCM_MAP_BRIDGE.CrewGroupName": "Crew contact group",
   "NCM_MAP_BRIDGE.CrewGroupHint": "Name of a Night City Messenger GM contact group (not case-sensitive). Gig notices, screamsheets and completion notices from a CREWFIXER are sent once to this group, so players can Reply All to the crew. Payments, acceptance emails and night market emails always go to individual characters. Leave blank, or if no matching group exists, every assigned player character is emailed individually."
 }

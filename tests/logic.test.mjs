@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  mailSubject,
+  mailSubject, pushTargets,
   isPerCharacterReward, parseReward, riskLevel, splitReward,
   statusTransitions, addedGigEvents, collectMarketAccessChanges, marketEligibilitySignature, planMarketAccess,
 } from "../scripts/logic.js";
@@ -143,4 +143,9 @@ test("a subject is kept within Messenger's limit", () => {
   assert.equal(mailSubject("x".repeat(500)).length, 190);
   assert.equal(mailSubject("Short"), "Short");
   assert.equal(mailSubject(undefined), "");
+});
+
+test("a fixer goes to each character a mail reaches, once", () => {
+  assert.deepEqual(pushTargets([{ actorId: "a" }, { actorId: "b", contactId: "x" }, { actorId: "a" }, { actorId: null, contactId: "c" }, null]), ["a", "b"]);
+  assert.deepEqual(pushTargets(undefined), []);
 });
