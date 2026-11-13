@@ -1,5 +1,9 @@
 # Night City Map - Night City Messenger Bridge (NCM-NCM Bridge)
 
+![Foundry v12](https://img.shields.io/badge/Foundry-v12-informational)
+![System](https://img.shields.io/badge/system-cyberpunk--red--core-e5233d)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 Sends Night City Map gig briefings, outcomes, completion payments and night market access messages to players through Night City Messenger.
 
 ## Requirements
